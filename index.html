@@ -78,7 +78,26 @@ function nextLarryDate(){return addDaysISO(new Date(),21)}
 const defaultData={
  active:"Juan Rodriguez",
  people:[
-  {name:"Juan Rodriguez",type:"Pago libre",initial:3499,balance:3499,paid:0,note:"Pagos libres. Permite pagos parciales y nuevos prestamos.",schedule:[],history:[]},
+  {name:"Juan Rodriguez",type:"Pago libre formato Juan",initial:6299,balance:3499,paid:2800,note:"Formato especial como el cuadro original: fecha, abono, saldo y prestamos adicionales.",schedule:[],history:[
+   {date:"2026-05-29",day:"",time:"",type:"Pago recibido",amount:100,reference:"Abono",balance:6199},
+   {date:"2026-07-05",day:"",time:"",type:"Pago recibido",amount:100,reference:"Abono",balance:6099},
+   {date:"2026-10-07",day:"",time:"",type:"Pago recibido",amount:100,reference:"Abono",balance:5999},
+   {date:"2026-12-08",day:"",time:"",type:"Pago recibido",amount:100,reference:"Abono",balance:5899},
+   {date:"2026-12-12",day:"",time:"",type:"Pago recibido",amount:100,reference:"Abono",balance:5799},
+   {date:"2026-04-19",day:"",time:"",type:"Pago recibido",amount:100,reference:"Abono",balance:5699},
+   {date:"2026-04-26",day:"",time:"",type:"Pago recibido",amount:100,reference:"Abono",balance:5599},
+   {date:"2026-05-24",day:"",time:"",type:"Pago recibido",amount:100,reference:"Abono",balance:5499},
+   {date:"2026-07-08",day:"",time:"",type:"Pago recibido",amount:300,reference:"Abono",balance:5199},
+   {date:"2026-07-22",day:"",time:"",type:"Pago recibido",amount:200,reference:"Abono",balance:4999},
+   {date:"2026-08-06",day:"",time:"",type:"Pago recibido",amount:150,reference:"Abono",balance:4849},
+   {date:"2026-09-13",day:"",time:"",type:"Pago recibido",amount:150,reference:"Abono",balance:4699},
+   {date:"2026-09-26",day:"",time:"",type:"Pago recibido",amount:200,reference:"Abono",balance:4499},
+   {date:"2026-10-15",day:"",time:"",type:"Pago recibido",amount:200,reference:"Abono",balance:4299},
+   {date:"2026-10-25",day:"",time:"",type:"Pago recibido",amount:200,reference:"Abono",balance:4099},
+   {date:"2026-12-08",day:"",time:"",type:"Pago recibido",amount:200,reference:"Abono",balance:3899},
+   {date:"2026-01-18",day:"",time:"",type:"Pago recibido",amount:100,reference:"Abono",balance:3799},
+   {date:"2026-06-03",day:"",time:"",type:"Pago recibido",amount:300,reference:"Abono",balance:3499}
+  ]},
   {name:"Andriu Narvaez",type:"8 cuotas semanales",initial:2520,balance:2520,paid:0,note:"315 dolares todos los martes por 8 semanas desde el martes 2 de junio de 2026.",schedule:[
    ["1","2026-06-02",315],["2","2026-06-09",315],["3","2026-06-16",315],["4","2026-06-23",315],
    ["5","2026-06-30",315],["6","2026-07-07",315],["7","2026-07-14",315],["8","2026-07-21",315]
@@ -140,6 +159,7 @@ function renderPanel(){
   <button class="secondary" onclick="resetPerson()">Reiniciar cuenta</button>
  </div>
  <h3>Proximo pago / alerta</h3>${nextPaymentBox(p)}
+ ${juanFormatTable(p)}
  <h3>Cuadro de pagos</h3>${scheduleTable(p)}
  <h3>Historial</h3>${historyTable(p)}
  </div>`;
@@ -183,6 +203,22 @@ function balanceAfter(p,week){
  if(p.name==="Larry Monsalve") return p.balance;
  let bal=p.initial;p.schedule.forEach(s=>{if(Number(s.week)<=Number(week))bal-=s.amount});return Math.max(0,bal)
 }
+
+
+function juanFormatTable(p){
+ if(p.name!=="Juan Rodriguez") return "";
+ let rows=p.history.slice().reverse().map(h=>{
+   let label=h.type==="Nuevo prestamo" ? "+"+money(h.amount)+" = "+money(h.balance) : money(h.amount)+" = "+money(h.balance);
+   return `<tr><td>${h.date}</td><td>${label}</td></tr>`;
+ }).join("");
+ return `<h3>Formato Juan Rodriguez</h3>
+ <div class="tablewrap"><table>
+ <thead><tr><th>Fecha</th><th>Operacion / Saldo</th></tr></thead>
+ <tbody>${rows}</tbody>
+ </table></div>
+ <p><strong>Nota:</strong> Prestamo de viaje y carro con interes mensual del 7% con opcion de amortizar capital.</p>`;
+}
+
 
 function historyTable(p){
  if(!p.history.length)return"<p>Sin movimientos registrados.</p>";
