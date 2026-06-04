@@ -126,6 +126,50 @@ const defaultData={
 };
 
 let data=JSON.parse(localStorage.getItem(KEY)||JSON.stringify(defaultData));
+
+function forceJuanFormat(){
+ let juan=data.people.find(p=>p.name==="Juan Rodriguez");
+ if(!juan) return;
+ juan.type="Formato Juan Rodriguez";
+ juan.initial=6299;
+ juan.balance=3499;
+ juan.paid=2800;
+ juan.note="Prestamo de viaje y carro por $6899 con un interes mensual del 7% con opcion amortizar al capital.";
+ juan.schedule=[];
+ juan.juanRows=[
+  {date:"May-22",op:"$5999+300=$6299",kind:"prestamo",amount:300,balance:6299},
+  {date:"May-29",op:"$100=$6199",kind:"pago",amount:100,balance:6199},
+  {date:"Jul-05",op:"$100= $6099",kind:"pago",amount:100,balance:6099},
+  {date:"Oct-07",op:"$100 = $5999",kind:"pago",amount:100,balance:5999},
+  {date:"Dic-08",op:"$100= $5899",kind:"pago",amount:100,balance:5899},
+  {date:"Dic-12",op:"$100= $5799",kind:"pago",amount:100,balance:5799},
+  {date:"Abril-19",op:"$100= $5699",kind:"pago",amount:100,balance:5699},
+  {date:"Abril-26",op:"$100= $5599",kind:"pago",amount:100,balance:5599},
+  {date:"May-24",op:"$100= $5499",kind:"pago",amount:100,balance:5499},
+  {date:"Jul-08",op:"$300= $5199",kind:"pago",amount:300,balance:5199},
+  {date:"Jul-22",op:"$200= $4999",kind:"pago",amount:200,balance:4999},
+  {date:"Agost-06",op:"$150= $4849",kind:"pago",amount:150,balance:4849},
+  {date:"Sept-13",op:"$150= $4699",kind:"pago",amount:150,balance:4699},
+  {date:"Sept-26",op:"$200= $4499",kind:"pago",amount:200,balance:4499},
+  {date:"Oct-15",op:"$200= $4299",kind:"pago",amount:200,balance:4299},
+  {date:"Oct-25",op:"$200= $4099",kind:"pago",amount:200,balance:4099},
+  {date:"Dic-08",op:"$200= $3899",kind:"pago",amount:200,balance:3899},
+  {date:"Ene-18",op:"$100= $3799",kind:"pago",amount:100,balance:3799},
+  {date:"Jun-03",op:"$300= $3499",kind:"pago",amount:300,balance:3499}
+ ];
+ juan.history=juan.juanRows.slice().reverse().map(r=>({
+   date:r.date,
+   day:"",
+   time:"",
+   type:r.kind==="prestamo"?"Nuevo prestamo":"Pago recibido",
+   amount:r.amount,
+   reference:"Formato Juan",
+   balance:r.balance
+ }));
+ save();
+}
+forceJuanFormat();
+
 function save(){localStorage.setItem(KEY,JSON.stringify(data))}
 function money(n){return "$"+Number(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
 function money0(n){return "$"+Number(n||0).toLocaleString("en-US",{maximumFractionDigits:0})}
