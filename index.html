@@ -49,7 +49,7 @@ footer button{background:white;color:var(--azul);border:1px solid var(--borde)}
 <main>
   <section class="hero">
     <h2>Control de pagos pendientes</h2>
-    <p>Pagos, saldos, historial, cuadros por persona, alertas y recibo PDF profesional. Version PDF corregida para compartir archivo real.</p>
+    <p>Pagos, saldos, historial, cuadros por persona, alertas y recibo PDF profesional. Version Larry corregida: ciclos cada 21 dias desde vencimiento.</p>
   </section>
 
   <section class="resumen">
@@ -79,7 +79,13 @@ let soundEnabled=false;
 let lastAlertKey="";
 
 function addDaysISO(date,days){let d=new Date(date);d.setDate(d.getDate()+days);return d.toISOString().slice(0,10)}
-function nextLarryDate(){return addDaysISO(new Date(),21)}
+function nextLarryDateFromSchedule(p){
+ let lastDate = "2026-06-04";
+ if(p && p.schedule && p.schedule.length){
+   lastDate = p.schedule[p.schedule.length-1].date || lastDate;
+ }
+ return addDaysISO(lastDate,21);
+}
 function monthLabel(dateStr){
  let d=new Date(dateStr+"T00:00:00");
  let months=["Ene","Feb","Marzo","Abril","May","Jun","Jul","Agost","Sept","Oct","Nov","Dic"];
@@ -116,7 +122,7 @@ const defaultData={
    ["1","2026-06-02",315],["2","2026-06-09",315],["3","2026-06-16",315],["4","2026-06-23",315],
    ["5","2026-06-30",315],["6","2026-07-07",315],["7","2026-07-14",315],["8","2026-07-21",315]
   ].map(x=>({week:x[0],date:x[1],amount:x[2],paid:false,paidDate:"",paidTime:"",reference:""})),history:[]},
-  {name:"Larry Monsalve",type:"500 para pagar 600",initial:600,balance:600,paid:0,note:"Prestamo de 500 dolares para pagar 600 dolares cada 21 dias. Si paga intereses, se genera automaticamente el proximo vencimiento.",schedule:[
+  {name:"Larry Monsalve",type:"500 para pagar 600",initial:600,balance:600,paid:0,note:"Prestamo iniciado el 14 de mayo de 2026: 500 dolares para pagar 600 dolares cada 3 semanas. Si a las 3 semanas solo se pagan intereses, se genera automaticamente el proximo vencimiento 21 dias despues de la fecha vencida.",schedule:[
    {week:"1",date:"2026-06-04",amount:600,paid:false,paidDate:"",paidTime:"",reference:""}
   ],history:[]},
   {name:"Rhyse",type:"Pago unico directo",initial:815,balance:815,paid:0,note:"Pago unico de 815 dolares. Recordatorio interno cada 5 dias hasta cancelar.",schedule:[
@@ -274,7 +280,7 @@ function createNextLarryPayment(p){
  let unpaid=p.schedule.find(s=>!s.paid);
  if(unpaid){let t=now();unpaid.paid=true;unpaid.paidDate=t.date;unpaid.paidTime=t.time}
  let nextNumber=p.schedule.length+1;
- p.schedule.push({week:String(nextNumber),date:nextLarryDate(),amount:600,paid:false,paidDate:"",paidTime:"",reference:""});
+ p.schedule.push({week:String(nextNumber),date:nextLarryDateFromSchedule(p),amount:600,paid:false,paidDate:"",paidTime:"",reference:""});
  p.balance=600;p.initial=600;
 }
 
