@@ -49,7 +49,7 @@ footer button{background:white;color:var(--azul);border:1px solid var(--borde)}
 <main>
   <section class="hero">
     <h2>Control de pagos pendientes</h2>
-    <p>Pagos, saldos, historial, cuadros por persona, alertas y recibo PDF profesional. Version PDF corregida.</p>
+    <p>Pagos, saldos, historial, cuadros por persona, alertas y recibo PDF profesional. Version PDF corregida para compartir archivo real.</p>
   </section>
 
   <section class="resumen">
@@ -350,6 +350,41 @@ function checkAlerts(showPopup){
 document.getElementById("enableSound").addEventListener("click",()=>{soundEnabled=true;playAlert();checkAlerts(true);alert("Alertas sonoras activadas. Manten esta pagina abierta para recibir avisos.")});
 setInterval(()=>checkAlerts(false),60000);
 
+
+async function saveOrSharePDF(doc, filename){
+  try{
+    const blob = doc.output("blob");
+    const file = new File([blob], filename, {type:"application/pdf"});
+
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({
+        files:[file],
+        title:"Recibo PDF - Edixon Lobo Financial Control",
+        text:"Adjunto estado de cuenta actualizado en PDF."
+      });
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 30000);
+    alert("PDF descargado. Para enviarlo, comparte el archivo PDF descargado, no el enlace del navegador.");
+  }catch(e){
+    console.error(e);
+    try{
+      doc.save(filename);
+    }catch(err){
+      alert("No se pudo generar el PDF. Recarga la pagina e intenta de nuevo.");
+    }
+  }
+}
+
+
 function generateJuanPDF(doc,p,m){
  let y=120;
  doc.setTextColor(19,32,51);doc.setFont("helvetica","bold");doc.setFontSize(16);doc.text("Estado de Cuenta - Juan Rodriguez",m,y);y+=28;
@@ -385,7 +420,7 @@ function generatePDF(p,movement){
 
  if(p.name==="Juan Rodriguez"){
    generateJuanPDF(doc,p,m);
-   doc.save("Juan_Rodriguez_estado_cuenta_Edixon_Lobo.pdf");
+   saveOrSharePDF(doc,"Juan_Rodriguez_estado_cuenta_Edixon_Lobo.pdf");
    return;
  }
 
@@ -417,7 +452,7 @@ function generatePDF(p,movement){
  doc.setTextColor(19,32,51);doc.setFontSize(10);doc.setFont("helvetica","normal");
  let msg=closed?"Gracias por la confianza. Confirmamos que esta cuenta ha sido pagada en su totalidad y queda cerrada con saldo pendiente en cero.":"Gracias por su confianza. Este documento refleja el estado actualizado de la cuenta al momento de su emision, manteniendo una relacion financiera clara, organizada y transparente.";
  doc.text(doc.splitTextToSize(msg,500),m+16,y+22);doc.setFont("helvetica","bold");doc.text("Atentamente, Edixon Lobo Financial Control",m+16,y+60);
- doc.save(p.name.replaceAll(" ","_")+"_recibo_Edixon_Lobo.pdf");
+ saveOrSharePDF(doc,p.name.replaceAll(" ","_")+"_recibo_Edixon_Lobo.pdf");
 }
 
 render();
