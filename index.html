@@ -139,16 +139,43 @@ function renderPanel(){
   <button class="secondary" onclick="generatePDF(active(),null)">Generar PDF actual</button>
   <button class="secondary" onclick="resetPerson()">Reiniciar cuenta</button>
  </div>
+ <h3>Proximo pago / alerta</h3>${nextPaymentBox(p)}
  <h3>Cuadro de pagos</h3>${scheduleTable(p)}
  <h3>Historial</h3>${historyTable(p)}
  </div>`;
 }
 
+
+function alertStatus(s){
+ let today=new Date();
+ let diff=Math.ceil((new Date(s.date)-today)/(1000*60*60*24));
+ if(s.paid) return '<span class="ok">Pagado</span>';
+ if(diff<0) return '<span class="bad">Vencido hace '+Math.abs(diff)+' dia(s)</span>';
+ if(diff===0) return '<span class="bad">Vence hoy</span>';
+ if(diff<=3) return '<span class="bad">Proximo a vencer: '+diff+' dia(s)</span>';
+ if(diff<=5) return '<span class="pend">Alerta: faltan '+diff+' dia(s)</span>';
+ return '<span class="ok">Al dia: faltan '+diff+' dia(s)</span>';
+}
+
+function nextPaymentBox(p){
+ let next=p.schedule.find(s=>!s.paid);
+ if(!next){
+   if(p.balance===0) return '<div class="card"><span>Estado</span><strong class="ok">Cuenta cerrada / pagada</strong></div>';
+   return '<div class="card"><span>Estado</span><strong>Pago libre sin fecha fija</strong></div>';
+ }
+ return `<div class="resumen">
+   <div class="card"><span>Fecha proxima</span><strong>${next.date}</strong></div>
+   <div class="card"><span>Monto proximo</span><strong>${money(next.amount)}</strong></div>
+   <div class="card"><span>Alerta</span><strong>${alertStatus(next).replaceAll('<span class="ok">','').replaceAll('<span class="pend">','').replaceAll('<span class="bad">','').replaceAll('</span>','')}</strong></div>
+ </div>`;
+}
+
+
 function scheduleTable(p){
  if(!p.schedule.length)return"<p>Cuenta finalizada o de pago libre. Usa el historial para ver todos los movimientos.</p>";
- return `<div class="tablewrap"><table><thead><tr><th>#</th><th>Fecha programada</th><th>Cuota</th><th>Estado</th><th>Fecha pago</th><th>Hora</th><th>Saldo estimado</th></tr></thead><tbody>${p.schedule.map(s=>{
+ return `<div class="tablewrap"><table><thead><tr><th>#</th><th>Fecha programada</th><th>Cuota</th><th>Estado</th><th>Alerta</th><th>Fecha pago</th><th>Hora</th><th>Saldo estimado</th></tr></thead><tbody>${p.schedule.map(s=>{
  let status=s.paid?'<span class="ok">Pagado</span>':new Date(s.date)<new Date()?'<span class="bad">Vencido/Pendiente</span>':'<span class="pend">Pendiente</span>';
- return `<tr><td>${s.week}</td><td>${s.date}</td><td>${money(s.amount)}</td><td>${status}</td><td>${s.paidDate||"-"}</td><td>${s.paidTime||"-"}</td><td>${money(balanceAfter(p,s.week))}</td></tr>`
+ return `<tr><td>${s.week}</td><td>${s.date}</td><td>${money(s.amount)}</td><td>${status}</td><td>${alertStatus(s)}</td><td>${s.paidDate||"-"}</td><td>${s.paidTime||"-"}</td><td>${money(balanceAfter(p,s.week))}</td></tr>`
  }).join("")}</tbody></table></div>`
 }
 
