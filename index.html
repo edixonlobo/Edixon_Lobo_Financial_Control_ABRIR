@@ -49,7 +49,7 @@ footer button{background:white;color:var(--azul);border:1px solid var(--borde)}
 <main>
   <section class="hero">
     <h2>Control de pagos pendientes</h2>
-    <p>Pagos, saldos, historial, cuadros por persona, alertas y recibo PDF profesional. Version Larry corregida: ciclos cada 21 dias desde vencimiento.</p>
+    <p>Pagos, saldos, historial, cuadros por persona, alertas y recibo PDF profesional. Version Larry corregida: intereses pagados y proximo pago cada 21 dias desde ultimo interes.</p>
   </section>
 
   <section class="resumen">
@@ -122,9 +122,14 @@ const defaultData={
    ["1","2026-06-02",315],["2","2026-06-09",315],["3","2026-06-16",315],["4","2026-06-23",315],
    ["5","2026-06-30",315],["6","2026-07-07",315],["7","2026-07-14",315],["8","2026-07-21",315]
   ].map(x=>({week:x[0],date:x[1],amount:x[2],paid:false,paidDate:"",paidTime:"",reference:""})),history:[]},
-  {name:"Larry Monsalve",type:"500 para pagar 600",initial:600,balance:600,paid:0,note:"Prestamo iniciado el 14 de mayo de 2026: 500 dolares para pagar 600 dolares cada 3 semanas. Si a las 3 semanas solo se pagan intereses, se genera automaticamente el proximo vencimiento 21 dias despues de la fecha vencida.",schedule:[
-   {week:"1",date:"2026-06-04",amount:600,paid:false,paidDate:"",paidTime:"",reference:""}
-  ],history:[]},
+  {name:"Larry Monsalve",type:"500 para pagar 600",initial:600,balance:600,paid:0,interestPaid:200,note:"Prestamo iniciado el 14 de mayo de 2026: 500 dolares para pagar 600 dolares cada 3 semanas. Ya se pagaron dos intereses. Si se pagan intereses nuevamente, se mantienen los 600 pendientes y la proxima fecha se calcula 21 dias despues del ultimo pago de intereses.",schedule:[
+   {week:"1",date:"2026-06-04",amount:100,paid:true,paidDate:"2026-06-04",paidTime:"",reference:"Interes pagado"},
+   {week:"2",date:"2026-06-25",amount:100,paid:true,paidDate:"2026-06-25",paidTime:"",reference:"Interes pagado"},
+   {week:"3",date:"2026-07-16",amount:600,paid:false,paidDate:"",paidTime:"",reference:"Proximo pago completo o intereses"}
+  ],history:[
+   {date:"2026-06-04",day:"",time:"",type:"Interes pagado / renovacion 21 dias",amount:100,reference:"Primer interes",balance:600},
+   {date:"2026-06-25",day:"",time:"",type:"Interes pagado / renovacion 21 dias",amount:100,reference:"Segundo interes",balance:600}
+  ]},
   {name:"Rhyse",type:"Pago unico directo",initial:815,balance:815,paid:0,note:"Pago unico de 815 dolares. Recordatorio interno cada 5 dias hasta cancelar.",schedule:[
    {week:"1",date:addDaysISO(new Date(),5),amount:815,paid:false,paidDate:"",paidTime:"",reference:""}
   ],history:[]}
@@ -208,7 +213,7 @@ function renderPanel(){
  <p>${p.note}</p>
  <div class="resumen">
   <div class="card"><span>Inicial</span><strong>${money(p.initial)}</strong></div>
-  <div class="card"><span>Pagado</span><strong>${money(p.paid)}</strong></div>
+  <div class="card"><span>${p.name==="Larry Monsalve"?"Intereses pagados":"Pagado"}</span><strong>${money(p.name==="Larry Monsalve" ? (p.interestPaid||p.paid||0) : p.paid)}</strong></div>
   <div class="card"><span>Saldo</span><strong>${money(p.balance)}</strong></div>
  </div>
  <div class="form">
@@ -276,14 +281,31 @@ function historyTable(p){
  return `<div class="tablewrap"><table><thead><tr><th>Fecha</th><th>Dia</th><th>Hora</th><th>Movimiento</th><th>Monto</th><th>Referencia</th><th>Saldo</th></tr></thead><tbody>${p.history.map(h=>`<tr><td>${h.date}</td><td>${h.day}</td><td>${h.time}</td><td>${h.type}</td><td>${money(h.amount)}</td><td>${h.reference||"-"}</td><td>${money(h.balance)}</td></tr>`).join("")}</tbody></table></div>`
 }
 
-function createNextLarryPayment(p){
+function createNextLarryPayment(p, interestAmount, ref){
+ let t=now();
  let unpaid=p.schedule.find(s=>!s.paid);
- if(unpaid){let t=now();unpaid.paid=true;unpaid.paidDate=t.date;unpaid.paidTime=t.time}
+ if(unpaid){
+   unpaid.amount=interestAmount;
+   unpaid.paid=true;
+   unpaid.paidDate=t.date;
+   unpaid.paidTime=t.time;
+   unpaid.reference=ref || "Interes pagado";
+ }
  let nextNumber=p.schedule.length+1;
- p.schedule.push({week:String(nextNumber),date:nextLarryDateFromSchedule(p),amount:600,paid:false,paidDate:"",paidTime:"",reference:""});
- p.balance=600;p.initial=600;
+ let nextDate=addDaysISO(t.date,21);
+ p.schedule.push({
+   week:String(nextNumber),
+   date:nextDate,
+   amount:600,
+   paid:false,
+   paidDate:"",
+   paidTime:"",
+   reference:"Proximo pago completo o intereses"
+ });
+ p.balance=600;
+ p.initial=600;
+ p.interestPaid=Number(p.interestPaid||0)+Number(interestAmount||0);
 }
-
 function addMovement(){
  let p=active(),amount=Number(document.getElementById("amount").value),ref=document.getElementById("reference").value.trim(),mov=document.getElementById("movement").value;
  if(!amount||amount<=0){alert("Coloca un monto valido.");return}
@@ -304,9 +326,10 @@ function addMovement(){
  }
 
  if(p.name==="Larry Monsalve" && mov==="interest"){
-  createNextLarryPayment(p);p.paid+=amount;
-  p.history.unshift({date:t.date,day:t.day,time:t.time,type:"Pago de intereses / renovacion 21 dias",amount,reference:ref,balance:p.balance});
-  save();render();generatePDF(p,p.history[0]);playAlert();alert("Proximo pago de Larry generado para dentro de 21 dias.");return;
+  createNextLarryPayment(p, amount, ref);
+  p.paid+=amount;
+  p.history.unshift({date:t.date,day:t.day,time:t.time,type:"Interes pagado / renovacion 21 dias",amount,reference:ref,balance:p.balance});
+  save();render();generatePDF(p,p.history[0]);playAlert();alert("Interes registrado. Proximo pago generado para 21 dias despues del ultimo pago de intereses.");return;
  }
 
  if(p.name==="Larry Monsalve" && mov==="full"){
@@ -437,7 +460,9 @@ function generatePDF(p,movement){
  doc.setFillColor(closed?230:243,closed?255:247,closed?240:252);doc.roundedRect(m,y,528,72,10,10,"F");
  doc.setTextColor(11,78,162);doc.setFont("helvetica","bold");doc.text(closed?"Estado: DEUDA CERRADA":"Resumen",m+16,y+22);
  doc.setTextColor(19,32,51);doc.setFont("helvetica","normal");
- doc.text("Monto inicial: "+money(p.initial),m+16,y+44);doc.text("Total pagado: "+money(p.paid),m+190,y+44);doc.text("Saldo pendiente: "+money(p.balance),m+360,y+44);
+ doc.text("Monto inicial: "+money(p.initial),m+16,y+44);
+ if(p.name==="Larry Monsalve"){doc.text("Intereses pagados: "+money(p.interestPaid||p.paid||0),m+190,y+44);}else{doc.text("Total pagado: "+money(p.paid),m+190,y+44);}
+ doc.text("Saldo pendiente: "+money(p.balance),m+360,y+44);
  y+=100;
  if(movement){doc.setFont("helvetica","bold");doc.setTextColor(11,78,162);doc.text("Ultimo movimiento registrado",m,y);y+=18;doc.setTextColor(19,32,51);doc.setFont("helvetica","normal");doc.text(`${movement.type}: ${money(movement.amount)} - ${movement.date} - ${movement.time} - Saldo: ${money(movement.balance)}`,m,y);y+=26}
  doc.setFont("helvetica","bold");doc.setTextColor(11,78,162);doc.text("Cuadro actualizado",m,y);y+=16;
