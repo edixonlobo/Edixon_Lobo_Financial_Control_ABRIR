@@ -1,22 +1,32 @@
 from pathlib import Path
 
-# Base más estable disponible
-
 candidates = [
+
+    Path("/mnt/data/INDEX_FINAL_COMPLETO_ANDRIU_CUOTA9.html"),
+
+    Path("/mnt/data/INDEX_FINAL_ANDRIU_CUOTA_9_REPROGRAMADA.txt"),
 
     Path("/mnt/data/EDIXON_LOBO_CODIGO_UNICO_GENERAL_FINAL_COMPLETO.txt"),
 
     Path("/mnt/data/RECUPERACION_EDIXON_LOBO_INDEX_LIMPIO.txt"),
 
-    Path("/mnt/data/INDEX_CORREGIDO_LAPIZ_ANDRIU_REPROGRAMADO.txt"),
-
 ]
 
-src = next(p for p in candidates if p.exists())
+src = None
+
+for p in candidates:
+
+    if p.exists():
+
+        src = p
+
+        break
+
+if src is None:
+
+    raise FileNotFoundError("No se encontró archivo base.")
 
 html = src.read_text(encoding="utf-8")
-
-# Limpieza de cualquier texto Python accidental
 
 doctype = html.find("<!DOCTYPE html>")
 
@@ -24,9 +34,7 @@ if doctype > 0:
 
     html = html[doctype:]
 
-# Arreglos de caracteres dañados visibles
-
-replacements = {
+fixes = {
 
     "ediciÃ³n": "edición",
 
@@ -38,37 +46,31 @@ replacements = {
 
     "âï¸": "✏️",
 
-    "lÃ­nea": "línea",
-
     "reprogramaciÃ³n": "reprogramación",
+
+    "lÃ­nea": "línea",
 
 }
 
-for a, b in replacements.items():
+for a, b in fixes.items():
 
     html = html.replace(a, b)
 
-# Reemplazar la función de Andriu con la lógica correcta:
-
-# cuota 4 pospuesta, cuota 5 pagada, cuota 9 agregada al final
-
 start = html.find("function actualizarPagoAndriu23Junio(){")
 
-end_candidates = [
+if start == -1:
 
-    html.find("\nensureDefaults();actualizarPagoAndriu23Junio();", start),
+    raise ValueError("No se encontró la función de Andriu.")
 
-    html.find("\nforceJuanFormat();", start),
+end = html.find("\nensureDefaults();actualizarPagoAndriu23Junio();", start)
 
-]
+if end == -1:
 
-end_candidates = [x for x in end_candidates if x != -1]
+    end = html.find("\nforceJuanFormat();", start)
 
-if start == -1 or not end_candidates:
+if end == -1:
 
-    raise ValueError("No encontré la función actualizarPagoAndriu23Junio.")
-
-end = min(end_candidates)
+    raise ValueError("No se encontró el final de la función de Andriu.")
 
 replacement = r'''function actualizarPagoAndriu23Junio(){
 
@@ -76,21 +78,17 @@ replacement = r'''function actualizarPagoAndriu23Junio(){
 
  if(!andriu||!andriu.schedule)return;
 
- // Limpia registros viejos duplicados de pruebas anteriores.
-
  andriu.schedule=andriu.schedule.filter(s=>
+
+   String(s.week)!=="4A" &&
 
    s.reference!=="Pago real reprogramado 23/06/2026 pagado 30/06/2026" &&
 
-   s.reference!=="Pago real de cuota pospuesta 23/06/2026" &&
-
-   String(s.week)!=="4A"
+   s.reference!=="Pago real de cuota pospuesta 23/06/2026"
 
  );
 
- // Cuota 4: queda sin pagar, pero con nota de reprogramación.
-
- let cuota4=andriu.schedule.find(s=>s.date==="2026-06-23"||String(s.week)==="4");
+ let cuota4=andriu.schedule.find(s=>String(s.week)==="4"||s.date==="2026-06-23");
 
  if(cuota4){
 
@@ -102,13 +100,11 @@ replacement = r'''function actualizarPagoAndriu23Junio(){
 
    cuota4.reference="Cuota pospuesta";
 
-   cuota4.note="Cuota pospuesta. El pago del 23/06/2026 fue reprogramado para el final del plan.";
+   cuota4.note="La cuota del 23/06/2026 fue reprogramada para el final del plan.";
 
  }
 
- // Cuota 5: queda pagada, con nota de que se pagó hoy.
-
- let cuota5=andriu.schedule.find(s=>s.date==="2026-06-30"||String(s.week)==="5");
+ let cuota5=andriu.schedule.find(s=>String(s.week)==="5"||s.date==="2026-06-30");
 
  if(cuota5){
 
@@ -120,9 +116,9 @@ replacement = r'''function actualizarPagoAndriu23Junio(){
 
    cuota5.paidTime=new Date().toLocaleTimeString("es-US",{hour:"2-digit",minute:"2-digit"});
 
-   cuota5.reference="Pago realizado hoy correspondiente a la cuota del 30/06/2026";
+   cuota5.reference="Pago realizado hoy";
 
-   cuota5.note="Pago realizado hoy correspondiente a la cuota del martes 30/06/2026.";
+   cuota5.note="Pago realizado hoy correspondiente a la cuota del 30/06/2026.";
 
    if(!yaHist){
 
@@ -140,7 +136,7 @@ replacement = r'''function actualizarPagoAndriu23Junio(){
 
        time:cuota5.paidTime,
 
-       type:"Pago de cuota reprogramada",
+       type:"Pago realizado hoy",
 
        amount:Number(cuota5.amount||315),
 
@@ -154,11 +150,9 @@ replacement = r'''function actualizarPagoAndriu23Junio(){
 
  }
 
- // Cuota 9: se agrega al final porque la cuota del 23/06 fue reprogramada.
+ let existe9=andriu.schedule.some(s=>String(s.week)==="9");
 
- let cuota9=andriu.schedule.find(s=>String(s.week)==="9"||s.reference==="Cuota agregada por reprogramación");
-
- if(!cuota9){
+ if(!existe9){
 
    andriu.schedule.push({
 
@@ -176,7 +170,7 @@ replacement = r'''function actualizarPagoAndriu23Junio(){
 
      reference:"Cuota agregada por reprogramación",
 
-     note:"Cuota agregada por la reprogramación del pago del 23/06/2026."
+     note:"Cuota agregada por la reprogramación del 23/06/2026."
 
    });
 
@@ -188,8 +182,6 @@ replacement = r'''function actualizarPagoAndriu23Junio(){
 
 html = html[:start] + replacement + html[end:]
 
-# Corregir posible bug antiguo del monto
-
 html = html.replace(
 
     'let p=active(),amount=Number(amount_input?.value||document.getElementById("amount").value),ref=document.getElementById("reference").value.trim(),mov=document.getElementById("movement").value;',
@@ -197,12 +189,6 @@ html = html.replace(
     'let p=active(),amount=Number(document.getElementById("amount").value),ref=document.getElementById("reference").value.trim(),mov=document.getElementById("movement").value;'
 
 )
-
-# Asegurar que el lápiz se vea correctamente
-
-html = html.replace('>âï¸</button>', '>✏️</button>')
-
-# Validaciones
 
 bad_terms = ["from pathlib import Path", "path_txt", "path_html", ".write_text(", "Path(\"/mnt/data", "print(str("]
 
@@ -216,9 +202,9 @@ if not html.lstrip().startswith("<!DOCTYPE html>") or "</html>" not in html:
 
     raise ValueError("HTML incompleto.")
 
-out_html = Path("/mnt/data/INDEX_FINAL_COMPLETO_ANDRIU_CUOTA9.html")
+out_html = Path("/mnt/data/INDEX_COMPLETO_FINAL_TODO_ACTUALIZADO.html")
 
-out_txt = Path("/mnt/data/INDEX_FINAL_COMPLETO_ANDRIU_CUOTA9.txt")
+out_txt = Path("/mnt/data/INDEX_COMPLETO_FINAL_TODO_ACTUALIZADO.txt")
 
 out_html.write_text(html, encoding="utf-8")
 
