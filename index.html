@@ -1,6 +1,102 @@
 from pathlib import Path
 
-code = r'''<!DOCTYPE html>
+base = Path("/mnt/data/edixon_lobo_financial_control_v8")
+
+style = (base / "css/style.css").read_text(encoding="utf-8")
+
+parts = []
+
+for rel in ["js/data.js", "js/utils.js", "js/storage.js", "js/pdf.js", "js/alerts.js", "js/app.js"]:
+
+    parts.append((base / rel).read_text(encoding="utf-8"))
+
+js = "\n\n".join(parts)
+
+start = js.find("function actualizarPagoAndriu23Junio(){")
+
+end = js.find("\nforceJuanFormat();", start)
+
+if start != -1 and end != -1:
+
+    replacement = r'''function actualizarPagoAndriu23Junio(){
+
+ let andriu=data.people.find(p=>p.name==="Andriu Narvaez");
+
+ if(!andriu || !andriu.schedule)return;
+
+ let cuota=andriu.schedule.find(s=>s.date==="2026-06-23" || String(s.week)==="4");
+
+ if(!cuota)return;
+
+ let t=now();
+
+ cuota.paid=false;
+
+ cuota.paidDate="";
+
+ cuota.paidTime="";
+
+ cuota.reference="Cuota pospuesta";
+
+ cuota.note="Cuota pospuesta. El pago del 23/06/2026 se corrió y fue realizado posteriormente.";
+
+ let yaExistePagoReal=andriu.schedule.some(s=>s.reference==="Pago real de cuota pospuesta 23/06/2026");
+
+ if(!yaExistePagoReal){
+
+   andriu.schedule.push({
+
+     week:"4A",
+
+     date:t.date,
+
+     amount:315,
+
+     paid:true,
+
+     paidDate:t.date,
+
+     paidTime:t.time,
+
+     reference:"Pago real de cuota pospuesta 23/06/2026",
+
+     note:"Pago realizado hoy correspondiente a la cuota pospuesta del 23/06/2026."
+
+   });
+
+   andriu.paid=Number(andriu.paid||0)+315;
+
+   andriu.balance=Math.max(0,Number(andriu.balance||0)-315);
+
+   if(!andriu.history)andriu.history=[];
+
+   andriu.history.unshift({
+
+     date:t.date,
+
+     day:t.day,
+
+     time:t.time,
+
+     type:"Pago de cuota pospuesta",
+
+     amount:315,
+
+     reference:"Pago realizado hoy correspondiente al 23/06/2026",
+
+     balance:andriu.balance
+
+   });
+
+ }
+
+ save();
+
+}'''
+
+    js = js[:start] + replacement + js[end:]
+
+single = f'''<!DOCTYPE html>
 
 <html lang="es">
 
@@ -12,71 +108,11 @@ code = r'''<!DOCTYPE html>
 
 <title>Edixon Lobo Financial Control</title>
 
+<meta name="theme-color" content="#0B4EA2">
+
 <style>
 
-:root{--azul:#0B4EA2;--azul2:#073B7A;--luz:#F3F7FC;--texto:#132033;--gris:#6B7A90;--borde:#D7E3F3;--ok:#0E9F6E;--warn:#C27803;--bad:#C81E1E}
-
-*{box-sizing:border-box}
-
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--luz);color:var(--texto)}
-
-header{background:linear-gradient(135deg,var(--azul),var(--azul2));color:white;padding:18px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 18px #001b3d33}
-
-.logo{width:52px;height:52px;border-radius:16px;background:white;color:var(--azul);display:grid;place-items:center;font-weight:900;font-size:20px}
-
-h1{margin:0;font-size:22px}header p{margin:2px 0 0;opacity:.9}
-
-main{max-width:1100px;margin:auto;padding:18px}
-
-.hero,.panel,.card{background:white;border:1px solid var(--borde);border-radius:22px;box-shadow:0 8px 24px #073b7a14}
-
-.hero{padding:22px}.hero h2{margin:0 0 6px}.hero p{margin:0;color:var(--gris)}
-
-.resumen{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:16px 0}
-
-.card{padding:16px}.card span{display:block;color:var(--gris);font-size:14px}.card strong{font-size:26px}
-
-.tabs{display:flex;gap:10px;overflow:auto;padding-bottom:14px}
-
-button{border:0;border-radius:14px;padding:12px 14px;font-weight:700;background:var(--azul);color:white}
-
-.tabs button{background:white;color:var(--azul);border:1px solid var(--borde);white-space:nowrap}
-
-.tabs button.active{background:var(--azul);color:white}
-
-.panel{padding:18px}.badge{display:inline-block;border-radius:999px;background:#E6F0FF;color:var(--azul);padding:6px 10px;font-weight:700;font-size:13px}
-
-.form{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}
-
-input,select{width:100%;border:1px solid var(--borde);border-radius:14px;padding:12px;font-size:16px}
-
-.secondary{background:#E6F0FF;color:var(--azul)}
-
-.tablewrap{overflow-x:auto}
-
-table{width:100%;border-collapse:collapse;margin-top:12px;background:white}
-
-th,td{border:1px solid #e5e7eb;padding:11px;text-align:left;font-size:14px}
-
-th{background:#F7FAFF;color:var(--azul)}
-
-.juan-table td{font-size:20px;color:#3b3b3b}
-
-.juan-date{width:45%;text-decoration:underline}
-
-.juan-op{width:55%}
-
-.juan-note{font-size:20px;line-height:1.5;margin-top:22px;color:#333}
-
-.ok{color:var(--ok);font-weight:800}.pend{color:var(--warn);font-weight:800}.bad{color:var(--bad);font-weight:800}
-
-.actions,footer{display:flex;gap:10px;flex-wrap:wrap}footer{max-width:1100px;margin:0 auto 30px;padding:0 18px}
-
-footer button{background:white;color:var(--azul);border:1px solid var(--borde)}
-
-#enableSound{position:fixed;right:18px;bottom:18px;background:var(--azul);color:white;border:none;padding:12px 16px;border-radius:14px;font-weight:800;z-index:9999;box-shadow:0 8px 24px #0003}
-
-@media(max-width:760px){.resumen,.form{grid-template-columns:1fr}.actions button{width:100%}.juan-table td{font-size:18px}}
+{style}
 
 </style>
 
@@ -98,7 +134,7 @@ footer button{background:white;color:var(--azul);border:1px solid var(--borde)}
 
     <h2>Control de pagos pendientes</h2>
 
-    <p>Pagos, saldos, historial, cuadros por persona, alertas, edición con lápiz y recibo PDF profesional.</p>
+    <p>Pagos, saldos, historial, alertas, edición con lápiz y recibo PDF profesional.</p>
 
   </section>
 
@@ -122,6 +158,8 @@ footer button{background:white;color:var(--azul);border:1px solid var(--borde)}
 
   <button onclick="exportBackup()">Exportar respaldo</button>
 
+  <label class="fileBtn">Importar respaldo<input type="file" accept="application/json" onchange="importBackup(event)"></label>
+
   <button onclick="resetAll()">Reiniciar todo</button>
 
 </footer>
@@ -138,1104 +176,34 @@ footer button{background:white;color:var(--azul);border:1px solid var(--borde)}
 
 <script>
 
-const KEY="edixon_lobo_financial_control_v7_juan_exacto";
-
-let soundEnabled=false;
-
-let lastAlertKey="";
-
-function addDaysISO(date,days){
-
- let d = typeof date === "string" ? new Date(date+"T00:00:00") : new Date(date);
-
- d.setDate(d.getDate()+days);
-
- return d.toISOString().slice(0,10);
-
-}
-
-function monthLabel(dateStr){
-
- let d=new Date(dateStr+"T00:00:00");
-
- let months=["Ene","Feb","Marzo","Abril","May","Jun","Jul","Agost","Sept","Oct","Nov","Dic"];
-
- return months[d.getMonth()]+"-"+String(d.getDate()).padStart(2,"0");
-
-}
-
-function todayLabel(){return monthLabel(new Date().toISOString().slice(0,10))}
-
-const defaultData={
-
- active:"Juan Rodriguez",
-
- people:[
-
-  {name:"Juan Rodriguez",type:"Formato Juan Rodriguez",initial:6299,balance:3499,paid:2800,note:"Prestamo de viaje y carro por $6899 con un interes mensual del 7% con opcion amortizar al capital.",schedule:[],history:[],
-
-   juanRows:[
-
-    {date:"May-22",op:"$5999+300=$6299",kind:"prestamo",amount:300,balance:6299},
-
-    {date:"May-29",op:"$100=$6199",kind:"pago",amount:100,balance:6199},
-
-    {date:"Jul-05",op:"$100= $6099",kind:"pago",amount:100,balance:6099},
-
-    {date:"Oct-07",op:"$100 = $5999",kind:"pago",amount:100,balance:5999},
-
-    {date:"Dic-08",op:"$100= $5899",kind:"pago",amount:100,balance:5899},
-
-    {date:"Dic-12",op:"$100= $5799",kind:"pago",amount:100,balance:5799},
-
-    {date:"Abril-19",op:"$100= $5699",kind:"pago",amount:100,balance:5699},
-
-    {date:"Abril-26",op:"$100= $5599",kind:"pago",amount:100,balance:5599},
-
-    {date:"May-24",op:"$100= $5499",kind:"pago",amount:100,balance:5499},
-
-    {date:"Jul-08",op:"$300= $5199",kind:"pago",amount:300,balance:5199},
-
-    {date:"Jul-22",op:"$200= $4999",kind:"pago",amount:200,balance:4999},
-
-    {date:"Agost-06",op:"$150= $4849",kind:"pago",amount:150,balance:4849},
-
-    {date:"Sept-13",op:"$150= $4699",kind:"pago",amount:150,balance:4699},
-
-    {date:"Sept-26",op:"$200= $4499",kind:"pago",amount:200,balance:4499},
-
-    {date:"Oct-15",op:"$200= $4299",kind:"pago",amount:200,balance:4299},
-
-    {date:"Oct-25",op:"$200= $4099",kind:"pago",amount:200,balance:4099},
-
-    {date:"Dic-08",op:"$200= $3899",kind:"pago",amount:200,balance:3899},
-
-    {date:"Ene-18",op:"$100= $3799",kind:"pago",amount:100,balance:3799},
-
-    {date:"Jun-03",op:"$300= $3499",kind:"pago",amount:300,balance:3499}
-
-   ]},
-
-  {name:"Andriu Narvaez",type:"8 cuotas semanales",initial:2520,balance:2520,paid:0,note:"315 dolares todos los martes por 8 semanas desde el martes 2 de junio de 2026.",schedule:[
-
-   ["1","2026-06-02",315],["2","2026-06-09",315],["3","2026-06-16",315],["4","2026-06-23",315],
-
-   ["5","2026-06-30",315],["6","2026-07-07",315],["7","2026-07-14",315],["8","2026-07-21",315]
-
-  ].map(x=>({week:x[0],date:x[1],amount:x[2],paid:false,paidDate:"",paidTime:"",reference:"",note:""})),history:[]},
-
-  {name:"Larry Monsalve",type:"500 para pagar 600",initial:600,balance:600,paid:0,interestPaid:200,note:"Prestamo iniciado el 14 de mayo de 2026: 500 dolares para pagar 600 dolares cada 3 semanas. Ya se pagaron dos intereses. Si se pagan intereses nuevamente, se mantienen los 600 pendientes y la proxima fecha se calcula 21 dias despues del ultimo pago de intereses.",schedule:[
-
-   {week:"1",date:"2026-06-04",amount:100,paid:true,paidDate:"2026-06-04",paidTime:"",reference:"Interes pagado",note:"Primer interes pagado"},
-
-   {week:"2",date:"2026-06-25",amount:100,paid:true,paidDate:"2026-06-25",paidTime:"",reference:"Interes pagado",note:"Segundo interes pagado"},
-
-   {week:"3",date:"2026-07-16",amount:600,paid:false,paidDate:"",paidTime:"",reference:"Proximo pago completo o intereses",note:""}
-
-  ],history:[
-
-   {date:"2026-06-04",day:"",time:"",type:"Interes pagado / renovacion 21 dias",amount:100,reference:"Primer interes",balance:600},
-
-   {date:"2026-06-25",day:"",time:"",type:"Interes pagado / renovacion 21 dias",amount:100,reference:"Segundo interes",balance:600}
-
-  ]},
-
-  {name:"Rhyse",type:"Pago unico directo",initial:815,balance:815,paid:0,note:"Pago unico de 815 dolares. Recordatorio interno cada 5 dias hasta cancelar.",schedule:[
-
-   {week:"1",date:addDaysISO(new Date(),5),amount:815,paid:false,paidDate:"",paidTime:"",reference:"",note:""}
-
-  ],history:[]},
-
-  {name:"Samsung Galaxy S26 Ultra",type:"Financiamiento equipo",initial:1447.25,balance:964.83,paid:482.42,note:"Financiamiento Samsung Galaxy S26 Ultra. Dos primeras cuotas pagadas. Monto final de cuotas: $241.21.",schedule:[
-
-   {week:"1",date:"2026-06-15",capital:223.34,interest:17.87,amount:241.21,balanceAfter:1223.91,paid:true,paidDate:"2026-06-15",paidTime:"",reference:"Primera cuota pagada",note:"Primera cuota pagada"},
-
-   {week:"2",date:"2026-06-25",capital:223.34,interest:17.87,amount:241.21,balanceAfter:964.83,paid:true,paidDate:"2026-06-25",paidTime:"",reference:"Segunda cuota pagada",note:"Segunda cuota pagada"},
-
-   {week:"3",date:"2026-07-15",capital:223.34,interest:17.87,amount:241.21,balanceAfter:723.62,paid:false,paidDate:"",paidTime:"",reference:"",note:""},
-
-   {week:"4",date:"2026-07-25",capital:223.34,interest:17.87,amount:241.21,balanceAfter:482.41,paid:false,paidDate:"",paidTime:"",reference:"",note:""},
-
-   {week:"5",date:"2026-08-15",capital:223.34,interest:17.87,amount:241.21,balanceAfter:241.20,paid:false,paidDate:"",paidTime:"",reference:"",note:""},
-
-   {week:"6",date:"2026-08-25",capital:223.29,interest:17.86,amount:241.15,balanceAfter:0,paid:false,paidDate:"",paidTime:"",reference:"",note:""}
-
-  ],history:[
-
-   {date:"2026-06-15",day:"",time:"",type:"Primera cuota pagada",amount:241.21,reference:"Samsung Galaxy S26 Ultra",balance:1223.91},
-
-   {date:"2026-06-25",day:"",time:"",type:"Segunda cuota pagada",amount:241.21,reference:"Samsung Galaxy S26 Ultra",balance:964.83}
-
-  ]}
-
- ]
-
-};
-
-let data=JSON.parse(localStorage.getItem(KEY)||JSON.stringify(defaultData));
-
-function save(){localStorage.setItem(KEY,JSON.stringify(data))}
-
-function ensureSamsungS26Ultra(){
-
- let old=data.people.find(p=>p.name==="Telefono S26");
-
- if(old) old.name="Samsung Galaxy S26 Ultra";
-
- let exists=data.people.find(p=>p.name==="Samsung Galaxy S26 Ultra");
-
- let fresh=JSON.parse(JSON.stringify(defaultData.people.find(p=>p.name==="Samsung Galaxy S26 Ultra")));
-
- if(!exists){
-
-   data.people.push(fresh);
-
-   save();
-
-   return;
-
- }
-
- exists.type=fresh.type;
-
- exists.note=fresh.note;
-
- if(!exists.schedule || exists.schedule.length<6){
-
-   exists.schedule=fresh.schedule;
-
-   exists.history=exists.history&&exists.history.length?exists.history:fresh.history;
-
- }
-
- if(Number(exists.paid||0)<482.42){
-
-   exists.initial=fresh.initial;
-
-   exists.balance=fresh.balance;
-
-   exists.paid=fresh.paid;
-
-   exists.schedule=fresh.schedule;
-
-   exists.history=fresh.history;
-
- }
-
- save();
-
-}
-
-function forceJuanFormat(){
-
- let juan=data.people.find(p=>p.name==="Juan Rodriguez");
-
- if(!juan) return;
-
- if(!juan.juanRows || !juan.juanRows.length){
-
-   let fresh=defaultData.people.find(p=>p.name==="Juan Rodriguez");
-
-   juan.type=fresh.type;
-
-   juan.initial=fresh.initial;
-
-   juan.balance=fresh.balance;
-
-   juan.paid=fresh.paid;
-
-   juan.note=fresh.note;
-
-   juan.schedule=[];
-
-   juan.juanRows=JSON.parse(JSON.stringify(fresh.juanRows));
-
-   juan.history=juan.juanRows.slice().reverse().map(r=>({
-
-     date:r.date,day:"",time:"",
-
-     type:r.kind==="prestamo"?"Nuevo prestamo":"Pago recibido",
-
-     amount:r.amount,reference:"Formato Juan",balance:r.balance
-
-   }));
-
-   save();
-
- }
-
-}
-
-function actualizarPagoAndriu23Junio(){
-
- let andriu=data.people.find(p=>p.name==="Andriu Narvaez");
-
- if(!andriu || !andriu.schedule) return;
-
- let cuota=andriu.schedule.find(s=>s.date==="2026-06-23" || s.week==="4");
-
- if(!cuota) return;
-
- let yaRegistrado=andriu.history && andriu.history.some(h=>h.reference==="Pago del 23 de junio realizado posteriormente");
-
- let fechaPago=new Date().toISOString().slice(0,10);
-
- let horaPago=new Date().toLocaleTimeString("es-US",{hour:"2-digit",minute:"2-digit"});
-
- let diaPago=new Date().toLocaleDateString("es-US",{weekday:"long"});
-
- cuota.paid=true;
-
- cuota.paidDate=cuota.paidDate || fechaPago;
-
- cuota.paidTime=cuota.paidTime || horaPago;
-
- cuota.reference="Pago del 23 de junio realizado posteriormente";
-
- cuota.note="Cuota pospuesta. El vencimiento original del 23/06/2026 fue reprogramado y cancelado posteriormente.";
-
- if(!yaRegistrado){
-
-   andriu.paid=Number(andriu.paid||0)+Number(cuota.amount||315);
-
-   andriu.balance=Math.max(0,Number(andriu.balance||0)-Number(cuota.amount||315));
-
-   if(!andriu.history) andriu.history=[];
-
-   andriu.history.unshift({
-
-     date:fechaPago,
-
-     day:diaPago,
-
-     time:horaPago,
-
-     type:"Pago atrasado cuota 23 de junio",
-
-     amount:Number(cuota.amount||315),
-
-     reference:"Pago del 23 de junio realizado posteriormente",
-
-     balance:andriu.balance
-
-   });
-
- }
-
- save();
-
-}
-
-forceJuanFormat();
-
-ensureSamsungS26Ultra();
-
-actualizarPagoAndriu23Junio();
-
-function money(n){return "$"+Number(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
-
-function money0(n){return "$"+Number(n||0).toLocaleString("en-US",{maximumFractionDigits:0})}
-
-function now(){let d=new Date();return{date:d.toISOString().slice(0,10),time:d.toLocaleTimeString("es-US",{hour:"2-digit",minute:"2-digit"}),day:d.toLocaleDateString("es-US",{weekday:"long"})}}
-
-function active(){return data.people.find(p=>p.name===data.active)}
-
-function render(){renderSummary();renderTabs();renderPanel();checkAlerts(false)}
-
-function renderSummary(){
-
- let pending=0,paid=0,alerts=0,today=new Date();
-
- data.people.forEach(p=>{
-
-   pending+=Number(p.balance||0);
-
-   paid+=Number(p.paid||0);
-
-   (p.schedule||[]).forEach(s=>{
-
-     if(!s.paid){
-
-       let diff=Math.ceil((new Date(s.date)-today)/(1000*60*60*24));
-
-       if(diff<=5)alerts++;
-
-     }
-
-   });
-
- });
-
- document.getElementById("totalPendiente").textContent=money(pending);
-
- document.getElementById("totalPagado").textContent=money(paid);
-
- document.getElementById("totalAlertas").textContent=alerts;
-
-}
-
-function renderTabs(){
-
- let el=document.getElementById("tabs");el.innerHTML="";
-
- data.people.forEach(p=>{
-
-   let b=document.createElement("button");
-
-   b.textContent=p.name;
-
-   b.className=p.name===data.active?"active":"";
-
-   b.onclick=()=>{data.active=p.name;save();render()};
-
-   el.appendChild(b);
-
- });
-
-}
-
-function renderPanel(){
-
- let p=active(),isJuan=p.name==="Juan Rodriguez",isLarry=p.name==="Larry Monsalve";
-
- let options='<option value="payment">Registrar pago</option>';
-
- if(isJuan) options='<option value="payment">Registrar pago</option><option value="loan">Agregar prestamo</option>';
-
- if(isLarry) options='<option value="interest">Pagar intereses / renovar 21 dias</option><option value="payment">Pago parcial</option><option value="full">Pago completo / cerrar deuda</option>';
-
- document.getElementById("panel").innerHTML=`
-
- <div class="panel">
-
- <h2>${p.name}</h2>
-
- <span class="badge">${p.type}</span>
-
- <p>${p.note}</p>
-
- <div class="resumen">
-
-  <div class="card"><span>Inicial</span><strong>${money(p.initial)}</strong></div>
-
-  <div class="card"><span>${p.name==="Larry Monsalve"?"Intereses pagados":"Pagado"}</span><strong>${money(p.name==="Larry Monsalve" ? (p.interestPaid||p.paid||0) : p.paid)}</strong></div>
-
-  <div class="card"><span>Saldo</span><strong>${money(p.balance)}</strong></div>
-
- </div>
-
- <div class="form">
-
-  <input id="amount" type="number" step="0.01" placeholder="Monto">
-
-  <input id="reference" placeholder="Referencia o metodo">
-
-  <select id="movement">${options}</select>
-
-  <button onclick="addMovement()">Guardar y generar PDF</button>
-
- </div>
-
- <div class="actions">
-
-  <button class="secondary" onclick="generatePDF(active(),null)">Generar PDF actual</button>
-
-  <button class="secondary" onclick="resetPerson()">Reiniciar cuenta</button>
-
- </div>
-
- ${isJuan ? juanExactTable(p) : `<h3>Proximo pago / alerta</h3>${nextPaymentBox(p)}<h3>Cuadro de pagos</h3>${scheduleTable(p)}<h3>Historial</h3>${historyTable(p)}`}
-
- </div>`;
-
-}
-
-function juanExactTable(p){
-
- let rows=(p.juanRows||[]).map(r=>`<tr><td class="juan-date">${r.date}</td><td class="juan-op">${r.op}</td></tr>`).join("");
-
- return `<h3>Estado de Cuenta Juan Rodriguez</h3>
-
- <div class="tablewrap"><table class="juan-table"><tbody>${rows}</tbody></table></div>
-
- <p class="juan-note">${p.note}</p>
-
- <p><strong>Saldo actual:</strong> ${money0(p.balance)}</p>`;
-
-}
-
-function alertStatus(s){
-
- let today=new Date();
-
- let diff=Math.ceil((new Date(s.date)-today)/(1000*60*60*24));
-
- if(s.paid) return '<span class="ok">Pagado</span>';
-
- if(diff<0) return '<span class="bad">Vencido hace '+Math.abs(diff)+' dia(s)</span>';
-
- if(diff===0) return '<span class="bad">Vence hoy</span>';
-
- if(diff<=3) return '<span class="bad">Proximo a vencer: '+diff+' dia(s)</span>';
-
- if(diff<=5) return '<span class="pend">Alerta: faltan '+diff+' dia(s)</span>';
-
- return '<span class="ok">Al dia: faltan '+diff+' dia(s)</span>';
-
-}
-
-function nextPaymentBox(p){
-
- let next=(p.schedule||[]).find(s=>!s.paid);
-
- if(!next){
-
-   if(p.balance===0) return '<div class="card"><span>Estado</span><strong class="ok">Cuenta cerrada / pagada</strong></div>';
-
-   return '<div class="card"><span>Estado</span><strong>Pago libre sin fecha fija</strong></div>';
-
- }
-
- let txt=alertStatus(next).replaceAll('<span class="ok">','').replaceAll('<span class="pend">','').replaceAll('<span class="bad">','').replaceAll('</span>','');
-
- return `<div class="resumen"><div class="card"><span>Fecha proxima</span><strong>${next.date}</strong></div><div class="card"><span>Monto proximo</span><strong>${money(next.amount)}</strong></div><div class="card"><span>Alerta</span><strong>${txt}</strong></div></div>`;
-
-}
-
-function scheduleTable(p){
-
- if(!p.schedule || !p.schedule.length)return"<p>Cuenta finalizada o de pago libre. Usa el historial para ver todos los movimientos.</p>";
-
- if(p.name==="Samsung Galaxy S26 Ultra"){
-
-   return `<div class="tablewrap"><table><thead><tr><th>#</th><th>Fecha</th><th>Capital</th><th>Interes</th><th>Pago total</th><th>Estado</th><th>Alerta</th><th>Nota</th><th>Saldo restante</th><th>Editar</th></tr></thead><tbody>${p.schedule.map(s=>{
-
-     let status=s.paid?'<span class="ok">Pagado</span>':new Date(s.date)<new Date()?'<span class="bad">Vencido/Pendiente</span>':'<span class="pend">Pendiente</span>';
-
-     return `<tr><td>${s.week}</td><td>${s.date}</td><td>${money(s.capital||0)}</td><td>${money(s.interest||0)}</td><td>${money(s.amount)}</td><td>${status}</td><td>${alertStatus(s)}</td><td>${s.note||"-"}</td><td>${money(s.balanceAfter||0)}</td><td><button class="secondary" onclick="editarCuota('${p.name}','${s.week}')">✏️</button></td></tr>`;
-
-   }).join("")}</tbody></table></div>`;
-
- }
-
- return `<div class="tablewrap"><table><thead><tr><th>#</th><th>Fecha programada</th><th>Cuota</th><th>Estado</th><th>Alerta</th><th>Fecha pago</th><th>Hora</th><th>Nota</th><th>Saldo estimado</th><th>Editar</th></tr></thead><tbody>${p.schedule.map(s=>{
-
-   let status=s.paid?'<span class="ok">Pagado</span>':new Date(s.date)<new Date()?'<span class="bad">Vencido/Pendiente</span>':'<span class="pend">Pendiente</span>';
-
-   return `<tr><td>${s.week}</td><td>${s.date}</td><td>${money(s.amount)}</td><td>${status}</td><td>${alertStatus(s)}</td><td>${s.paidDate||"-"}</td><td>${s.paidTime||"-"}</td><td>${s.note||"-"}</td><td>${money(balanceAfter(p,s.week))}</td><td><button class="secondary" onclick="editarCuota('${p.name}','${s.week}')">✏️</button></td></tr>`;
-
- }).join("")}</tbody></table></div>`;
-
-}
-
-function balanceAfter(p,week){
-
- if(p.name==="Larry Monsalve") return p.balance;
-
- if(p.name==="Samsung Galaxy S26 Ultra"){
-
-   let s=p.schedule.find(x=>String(x.week)===String(week));
-
-   return s?Number(s.balanceAfter||0):p.balance;
-
- }
-
- let bal=p.initial;
-
- (p.schedule||[]).forEach(s=>{if(Number(s.week)<=Number(week))bal-=Number(s.amount||0)});
-
- return Math.max(0,bal);
-
-}
-
-function historyTable(p){
-
- if(!p.history || !p.history.length)return"<p>Sin movimientos registrados.</p>";
-
- return `<div class="tablewrap"><table><thead><tr><th>Fecha</th><th>Dia</th><th>Hora</th><th>Movimiento</th><th>Monto</th><th>Referencia</th><th>Saldo</th></tr></thead><tbody>${p.history.map(h=>`<tr><td>${h.date}</td><td>${h.day}</td><td>${h.time}</td><td>${h.type}</td><td>${money(h.amount)}</td><td>${h.reference||"-"}</td><td>${money(h.balance)}</td></tr>`).join("")}</tbody></table></div>`;
-
-}
-
-function editarCuota(nombre, semana){
-
- let persona=data.people.find(p=>p.name===nombre);
-
- if(!persona || !persona.schedule) return;
-
- let cuota=persona.schedule.find(s=>String(s.week)===String(semana));
-
- if(!cuota) return;
-
- let nuevaFecha=prompt("Nueva fecha programada en formato YYYY-MM-DD:", cuota.date || "");
-
- if(!nuevaFecha) return;
-
- let nuevoMonto=prompt("Nuevo monto del pago:", cuota.amount || 0);
-
- if(nuevoMonto===null || nuevoMonto==="") return;
-
- let estado=prompt("Estado de la cuota: escribe pagado o pendiente", cuota.paid ? "pagado" : "pendiente");
-
- if(!estado) return;
-
- let fechaReal=prompt("Fecha real de pago en formato YYYY-MM-DD:", new Date().toISOString().slice(0,10));
-
- if(!fechaReal) fechaReal=new Date().toISOString().slice(0,10);
-
- let referencia=prompt("Referencia / observacion:", cuota.reference || "Editado manualmente") || "Editado manualmente";
-
- let nota=prompt("Nota visible en el cuadro:", cuota.note || "") || "";
-
- cuota.date=nuevaFecha;
-
- cuota.amount=Number(nuevoMonto);
-
- cuota.note=nota;
-
- if(persona.name==="Samsung Galaxy S26 Ultra"){
-
-   let saldoDespues=prompt("Saldo restante despues de este pago:", cuota.balanceAfter || persona.balance);
-
-   if(saldoDespues!==null && saldoDespues!=="") cuota.balanceAfter=Number(saldoDespues);
-
- }
-
- if(estado.toLowerCase().trim()==="pagado"){
-
-   let estabaPagada=cuota.paid===true;
-
-   cuota.paid=true;
-
-   cuota.paidDate=fechaReal;
-
-   cuota.paidTime=new Date().toLocaleTimeString("es-US",{hour:"2-digit",minute:"2-digit"});
-
-   cuota.reference=referencia;
-
-   if(!estabaPagada){
-
-     persona.paid=Number(persona.paid||0)+Number(cuota.amount||0);
-
-     if(persona.name==="Samsung Galaxy S26 Ultra" && cuota.balanceAfter!==undefined){
-
-       persona.balance=Number(cuota.balanceAfter||0);
-
-     }else{
-
-       persona.balance=Math.max(0,Number(persona.balance||0)-Number(cuota.amount||0));
-
-     }
-
-   }
-
-   if(!persona.history) persona.history=[];
-
-   persona.history.unshift({
-
-     date:fechaReal,
-
-     day:new Date(fechaReal+"T00:00:00").toLocaleDateString("es-US",{weekday:"long"}),
-
-     time:cuota.paidTime,
-
-     type:"Pago editado manualmente",
-
-     amount:Number(cuota.amount||0),
-
-     reference:referencia,
-
-     balance:persona.balance
-
-   });
-
- }else{
-
-   if(cuota.paid===true){
-
-     persona.paid=Math.max(0,Number(persona.paid||0)-Number(cuota.amount||0));
-
-     persona.balance=Number(persona.balance||0)+Number(cuota.amount||0);
-
-   }
-
-   cuota.paid=false;
-
-   cuota.paidDate="";
-
-   cuota.paidTime="";
-
-   cuota.reference=referencia;
-
- }
-
- save();
-
- render();
-
-}
-
-function createNextLarryPayment(p, interestAmount, ref){
-
- let t=now();
-
- let unpaid=p.schedule.find(s=>!s.paid);
-
- if(unpaid){
-
-   unpaid.amount=interestAmount;
-
-   unpaid.paid=true;
-
-   unpaid.paidDate=t.date;
-
-   unpaid.paidTime=t.time;
-
-   unpaid.reference=ref || "Interes pagado";
-
-   unpaid.note="Interes pagado. Se renueva por 21 dias.";
-
- }
-
- let nextNumber=p.schedule.length+1;
-
- let nextDate=addDaysISO(t.date,21);
-
- p.schedule.push({week:String(nextNumber),date:nextDate,amount:600,paid:false,paidDate:"",paidTime:"",reference:"Proximo pago completo o intereses",note:""});
-
- p.balance=600;
-
- p.initial=600;
-
- p.interestPaid=Number(p.interestPaid||0)+Number(interestAmount||0);
-
-}
-
-function addMovement(){
-
- let p=active(),amount=Number(document.getElementById("amount").value),ref=document.getElementById("reference").value.trim(),mov=document.getElementById("movement").value;
-
- if(!amount || amount<=0){alert("Coloca un monto valido.");return}
-
- let t=now();
-
- if(p.name==="Juan Rodriguez"){
-
-  if(mov==="loan"){
-
-    let oldBal=p.balance;
-
-    p.balance+=amount;p.initial+=amount;
-
-    p.juanRows.push({date:todayLabel(),op:money0(oldBal)+"+"+Number(amount).toLocaleString("en-US",{maximumFractionDigits:0})+"="+money0(p.balance),kind:"prestamo",amount,balance:p.balance});
-
-    p.history.unshift({date:t.date,day:t.day,time:t.time,type:"Nuevo prestamo",amount,reference:ref,balance:p.balance});
-
-  }else{
-
-    p.balance=Math.max(0,p.balance-amount);p.paid+=amount;
-
-    p.juanRows.push({date:todayLabel(),op:money0(amount)+"= "+money0(p.balance),kind:"pago",amount,balance:p.balance});
-
-    p.history.unshift({date:t.date,day:t.day,time:t.time,type:p.balance===0?"Pago completo / deuda cerrada":"Pago recibido",amount,reference:ref,balance:p.balance});
-
-  }
-
-  save();render();generatePDF(p,p.history[0]);return;
-
- }
-
- if(p.name==="Larry Monsalve" && mov==="interest"){
-
-  createNextLarryPayment(p, amount, ref);
-
-  p.paid+=amount;
-
-  p.history.unshift({date:t.date,day:t.day,time:t.time,type:"Interes pagado / renovacion 21 dias",amount,reference:ref,balance:p.balance});
-
-  save();render();generatePDF(p,p.history[0]);playAlert();alert("Interes registrado. Proximo pago generado para 21 dias despues del ultimo pago de intereses.");return;
-
- }
-
- if(p.name==="Larry Monsalve" && mov==="full"){
-
-  p.balance=0;p.paid+=amount;
-
-  let unpaid=p.schedule.find(s=>!s.paid);
-
-  if(unpaid){unpaid.paid=true;unpaid.paidDate=t.date;unpaid.paidTime=t.time;unpaid.reference=ref;unpaid.note="Deuda cerrada";}
-
-  p.history.unshift({date:t.date,day:t.day,time:t.time,type:"Pago completo / deuda cerrada",amount,reference:ref,balance:p.balance});
-
-  save();render();generatePDF(p,p.history[0]);alert("Deuda cerrada. PDF generado con agradecimiento por la confianza.");return;
-
- }
-
- if(p.name==="Samsung Galaxy S26 Ultra"){
-
-   let next=p.schedule.find(s=>!s.paid);
-
-   if(!next){alert("El financiamiento ya esta cerrado.");return}
-
-   if(amount < Number(next.amount)){alert("Para Samsung Galaxy S26 Ultra registra la cuota completa: "+money(next.amount));return}
-
-   next.paid=true;
-
-   next.paidDate=t.date;
-
-   next.paidTime=t.time;
-
-   next.reference=ref || "Cuota pagada";
-
-   next.note="Cuota pagada";
-
-   p.balance=Number(next.balanceAfter||0);
-
-   p.paid=Number(p.paid||0)+Number(next.amount||amount);
-
-   p.history.unshift({date:t.date,day:t.day,time:t.time,type:p.balance===0?"Pago completo / financiamiento cerrado":"Cuota pagada",amount:next.amount,reference:ref,balance:p.balance});
-
-   save();render();generatePDF(p,p.history[0]);return;
-
- }
-
- p.balance=Math.max(0,p.balance-amount);p.paid+=amount;
-
- let next=p.schedule.find(s=>!s.paid);
-
- if(next && amount>=Number(next.amount)){next.paid=true;next.paidDate=t.date;next.paidTime=t.time;next.reference=ref;next.note="Pago registrado";}
-
- if(p.name==="Rhyse" && p.balance>0){p.schedule=[{week:"Proximo",date:addDaysISO(new Date(),5),amount:p.balance,paid:false,paidDate:"",paidTime:"",reference:"",note:""}]}
-
- if(p.balance===0){p.schedule.forEach(s=>{if(!s.paid){s.paid=true;s.paidDate=t.date;s.paidTime=t.time;s.reference=ref;s.note="Deuda cerrada"}})}
-
- p.history.unshift({date:t.date,day:t.day,time:t.time,type:p.balance===0?"Pago completo / deuda cerrada":"Pago recibido",amount,reference:ref,balance:p.balance});
-
- save();render();generatePDF(p,p.history[0]);
-
-}
-
-function resetPerson(){
-
- if(!confirm("Reiniciar esta cuenta?"))return;
-
- let i=data.people.findIndex(x=>x.name===data.active);
-
- data.people[i]=JSON.parse(JSON.stringify(defaultData.people.find(x=>x.name===data.active)));
-
- save();render();
-
-}
-
-function resetAll(){
-
- if(!confirm("Borrar todo y volver al inicio?"))return;
-
- localStorage.removeItem(KEY);
-
- data=JSON.parse(JSON.stringify(defaultData));
-
- save();render();
-
-}
-
-function exportBackup(){
-
- let blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-
- let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="respaldo_edixon_lobo.json";a.click();
-
-}
-
-function playAlert(){
-
- if(soundEnabled){
-
-   let audio=document.getElementById("alertSound");
-
-   audio.currentTime=0;
-
-   audio.play().catch(()=>{});
-
- }
-
-}
-
-function checkAlerts(showPopup){
-
- let today=new Date(),messages=[];
-
- data.people.forEach(p=>{
-
-   (p.schedule||[]).forEach(s=>{
-
-     if(!s.paid){
-
-       let diff=Math.ceil((new Date(s.date)-today)/(1000*60*60*24));
-
-       if(diff<=5) messages.push(p.name+" - vence en "+diff+" dia(s). Fecha: "+s.date+" - Monto: "+money(s.amount));
-
-     }
-
-   });
-
- });
-
- if(messages.length){
-
-   let key=new Date().toISOString().slice(0,10)+"-"+messages.join("|");
-
-   if(showPopup || key!==lastAlertKey){
-
-     lastAlertKey=key;
-
-     playAlert();
-
-     if(showPopup) alert("Recordatorios de pago:\n\n"+messages.join("\n"));
-
-   }
-
- }
-
-}
-
-document.getElementById("enableSound").addEventListener("click",()=>{
-
- soundEnabled=true;
-
- playAlert();
-
- checkAlerts(true);
-
- alert("Alertas sonoras activadas. Manten esta pagina abierta para recibir avisos.");
-
-});
-
-setInterval(()=>checkAlerts(false),60000);
-
-async function saveOrSharePDF(doc, filename){
-
- try{
-
-   const blob=doc.output("blob");
-
-   const file=new File([blob],filename,{type:"application/pdf"});
-
-   if(navigator.canShare && navigator.canShare({files:[file]})){
-
-     await navigator.share({files:[file],title:"Recibo PDF - Edixon Lobo Financial Control",text:"Adjunto estado de cuenta actualizado en PDF."});
-
-     return;
-
-   }
-
-   const url=URL.createObjectURL(blob);
-
-   const a=document.createElement("a");
-
-   a.href=url;a.download=filename;
-
-   document.body.appendChild(a);a.click();document.body.removeChild(a);
-
-   setTimeout(()=>URL.revokeObjectURL(url),30000);
-
-   alert("PDF descargado. Para enviarlo, comparte el archivo PDF descargado, no el enlace del navegador.");
-
- }catch(e){
-
-   console.error(e);
-
-   try{doc.save(filename)}catch(err){alert("No se pudo generar el PDF. Recarga la pagina e intenta de nuevo.")}
-
- }
-
-}
-
-function generateJuanPDF(doc,p,m){
-
- let y=120;
-
- doc.setTextColor(19,32,51);doc.setFont("helvetica","bold");doc.setFontSize(16);doc.text("Estado de Cuenta - Juan Rodriguez",m,y);y+=28;
-
- doc.setFont("helvetica","normal");doc.setFontSize(12);doc.text("Fecha de emision: "+new Date().toLocaleString("es-US"),m,y);y+=24;
-
- doc.setFont("helvetica","bold");doc.text("Saldo actual: "+money0(p.balance),m,y);y+=28;
-
- doc.setFont("helvetica","normal");doc.setFontSize(15);
-
- (p.juanRows||[]).forEach(r=>{
-
-   if(y>700){doc.addPage();y=50}
-
-   doc.text(r.date,m,y);
-
-   doc.text(r.op,m+250,y);
-
-   y+=28;
-
- });
-
- y+=18;
-
- if(y>660){doc.addPage();y=50}
-
- doc.setFontSize(13);
-
- doc.text(doc.splitTextToSize(p.note,520),m,y);y+=60;
-
- doc.setFillColor(p.balance===0?220:230,p.balance===0?255:240,p.balance===0?230:255);
-
- doc.roundedRect(m,y,528,70,10,10,"F");
-
- doc.setTextColor(19,32,51);doc.setFontSize(10);doc.setFont("helvetica","normal");
-
- let msg=p.balance===0?"Gracias por la confianza. Confirmamos que esta cuenta ha sido pagada en su totalidad y queda cerrada con saldo pendiente en cero.":"Gracias por su confianza. Este documento refleja la actualizacion del estado de cuenta de Juan Rodriguez con el mismo formato de control utilizado.";
-
- doc.text(doc.splitTextToSize(msg,500),m+16,y+22);
-
- doc.setFont("helvetica","bold");doc.text("Atentamente, Edixon Lobo Financial Control",m+16,y+58);
-
-}
-
-function generatePDF(p,movement){
-
- if(!window.jspdf){alert("No cargo el generador PDF. Conectate a internet y recarga.");return}
-
- const {jsPDF}=window.jspdf;
-
- let doc=new jsPDF({unit:"pt",format:"letter"}),m=42,y=120;
-
- doc.setFillColor(11,78,162);doc.rect(0,0,612,92,"F");
-
- doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(22);doc.text("Edixon Lobo",m,38);
-
- doc.setFontSize(12);doc.setFont("helvetica","normal");doc.text("Financial Control - Recibo / Estado de cuenta",m,60);
-
- if(p.name==="Juan Rodriguez"){
-
-   generateJuanPDF(doc,p,m);
-
-   saveOrSharePDF(doc,"Juan_Rodriguez_estado_cuenta_Edixon_Lobo.pdf");
-
-   return;
-
- }
-
- let closed=p.balance===0;
-
- doc.setTextColor(19,32,51);doc.setFontSize(16);doc.setFont("helvetica","bold");doc.text("Cuenta: "+p.name,m,y);
-
- y+=24;doc.setFontSize(11);doc.setFont("helvetica","normal");doc.text("Tipo: "+p.type,m,y);y+=18;
-
- doc.text("Fecha de emision: "+new Date().toLocaleString("es-US"),m,y);y+=24;
-
- doc.setFillColor(closed?230:243,closed?255:247,closed?240:252);doc.roundedRect(m,y,528,72,10,10,"F");
-
- doc.setTextColor(11,78,162);doc.setFont("helvetica","bold");doc.text(closed?"Estado: DEUDA CERRADA":"Resumen",m+16,y+22);
-
- doc.setTextColor(19,32,51);doc.setFont("helvetica","normal");
-
- doc.text("Monto inicial: "+money(p.initial),m+16,y+44);
-
- if(p.name==="Larry Monsalve"){doc.text("Intereses pagados: "+money(p.interestPaid||p.paid||0),m+190,y+44)}else{doc.text("Total pagado: "+money(p.paid),m+190,y+44)}
-
- doc.text("Saldo pendiente: "+money(p.balance),m+360,y+44);
-
- y+=100;
-
- if(movement){
-
-   doc.setFont("helvetica","bold");doc.setTextColor(11,78,162);doc.text("Ultimo movimiento registrado",m,y);y+=18;
-
-   doc.setTextColor(19,32,51);doc.setFont("helvetica","normal");
-
-   doc.text(`${movement.type}: ${money(movement.amount)} - ${movement.date} - ${movement.time} - Saldo: ${money(movement.balance)}`,m,y);
-
-   y+=26;
-
- }
-
- doc.setFont("helvetica","bold");doc.setTextColor(11,78,162);doc.text("Cuadro actualizado",m,y);y+=16;
-
- doc.setFontSize(8.5);doc.setTextColor(19,32,51);
-
- if(p.name==="Samsung Galaxy S26 Ultra" && p.schedule.length){
-
-   doc.text("#",m,y);doc.text("Fecha",m+35,y);doc.text("Capital",m+110,y);doc.text("Interes",m+185,y);doc.text("Pago",m+255,y);doc.text("Estado",m+330,y);doc.text("Saldo",m+440,y);
-
-   y+=10;doc.line(m,y,570,y);y+=15;
-
-   p.schedule.forEach(s=>{
-
-     if(y>690){doc.addPage();y=50}
-
-     doc.text(String(s.week),m,y);doc.text(s.date,m+35,y);doc.text(money(s.capital||0),m+110,y);doc.text(money(s.interest||0),m+185,y);doc.text(money(s.amount),m+255,y);doc.text(s.paid?"Pagado":"Pendiente",m+330,y);doc.text(money(s.balanceAfter||0),m+440,y);y+=16;
-
-   });
-
- }else if(p.schedule && p.schedule.length){
-
-   doc.text("#",m,y);doc.text("Fecha programada",m+50,y);doc.text("Cuota",m+180,y);doc.text("Estado",m+260,y);doc.text("Fecha pago",m+350,y);doc.text("Saldo",m+460,y);
-
-   y+=10;doc.line(m,y,570,y);y+=15;
-
-   p.schedule.forEach(s=>{
-
-     if(y>690){doc.addPage();y=50}
-
-     doc.text(String(s.week),m,y);doc.text(s.date,m+50,y);doc.text(money(s.amount),m+180,y);doc.text(s.paid?"Pagado":"Pendiente",m+260,y);doc.text(s.paidDate||"-",m+350,y);doc.text(p.name==="Larry Monsalve"?money(p.balance):money(balanceAfter(p,s.week)),m+460,y);y+=16;
-
-   });
-
- }
-
- y+=18;if(y>650){doc.addPage();y=50}
-
- doc.setFont("helvetica","bold");doc.setTextColor(11,78,162);doc.setFontSize(11);doc.text("Historial de movimientos",m,y);y+=16;
-
- doc.setFont("helvetica","normal");doc.setTextColor(19,32,51);doc.setFontSize(8.5);
-
- doc.text("Fecha",m,y);doc.text("Hora",m+72,y);doc.text("Movimiento",m+130,y);doc.text("Monto",m+260,y);doc.text("Referencia",m+340,y);doc.text("Saldo",m+465,y);
-
- y+=10;doc.line(m,y,570,y);y+=14;
-
- (p.history||[]).slice(0,25).forEach(h=>{
-
-   if(y>720){doc.addPage();y=50}
-
-   doc.text(String(h.date||""),m,y);doc.text(String(h.time||""),m+72,y);doc.text(String(h.type||""),m+130,y);doc.text(money(h.amount||0),m+260,y);doc.text(String(h.reference||"-").slice(0,18),m+340,y);doc.text(money(h.balance||0),m+465,y);y+=15;
-
- });
-
- y=Math.min(y+28,690);
-
- doc.setFillColor(closed?220:230,closed?255:240,closed?230:255);doc.roundedRect(m,y,528,70,10,10,"F");
-
- doc.setTextColor(19,32,51);doc.setFontSize(10);doc.setFont("helvetica","normal");
-
- let msg=closed?"Gracias por la confianza. Confirmamos que esta cuenta ha sido pagada en su totalidad y queda cerrada con saldo pendiente en cero.":"Gracias por su confianza. Este documento refleja el estado actualizado de la cuenta al momento de su emision, manteniendo una relacion financiera clara, organizada y transparente.";
-
- doc.text(doc.splitTextToSize(msg,500),m+16,y+22);
-
- doc.setFont("helvetica","bold");doc.text("Atentamente, Edixon Lobo Financial Control",m+16,y+60);
-
- saveOrSharePDF(doc,p.name.replaceAll(" ","_")+"_recibo_Edixon_Lobo.pdf");
-
-}
-
-render();
+{js}
 
 </script>
 
 </body>
 
-</html>'''
+</html>
 
-path_txt = Path("/mnt/data/INDEX_UNICO_FINAL_EDIXON_LOBO_S26_ULTRA.txt")
+'''
 
-path_html = Path("/mnt/data/index.html")
+# remove accidental python snippets if any
 
-path_txt.write_text(code, encoding="utf-8")
+bad_terms = ["path_txt", "path_html", "write_text", "Path(\"/mnt/data", "encoding=\"utf-8\""]
 
-path_html.write_text(code, encoding="utf-8")
+for term in bad_terms:
 
-print(str(path_txt))
+    assert term not in single, f"Bad term found: {term}"
+
+assert single.startswith("<!DOCTYPE html>")
+
+assert single.strip().endswith("</html>")
+
+out = Path("/mnt/data/INDEX_UNICO_FINAL_LIMPIO_EDIXON_LOBO.html")
+
+out_txt = Path("/mnt/data/INDEX_UNICO_FINAL_LIMPIO_EDIXON_LOBO.txt")
+
+out.write_text(single, encoding="utf-8")
+
+out_txt.write_text(single, encoding="utf-8")
+
+print(str(out_txt))
