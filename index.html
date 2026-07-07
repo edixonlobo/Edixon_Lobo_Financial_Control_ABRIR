@@ -144,9 +144,7 @@ function todayLabel(){return monthLabel(new Date().toISOString().slice(0,10))}
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
 
-const defaultData={active:"Juan Rodriguez",people:[
-
-{name:"Juan Rodriguez",type:"Formato Juan Rodriguez",initial:6299,balance:3499,paid:2800,note:"Prestamo de viaje y carro por $6899 con un interes mensual del 7% con opcion amortizar al capital.",schedule:[],history:[],juanRows:[
+const juanRows=[
 
 {date:"May-22",op:"$5999+300=$6299",kind:"prestamo",amount:300,balance:6299},
 
@@ -186,9 +184,13 @@ const defaultData={active:"Juan Rodriguez",people:[
 
 {date:"Jun-03",op:"$300= $3499",kind:"pago",amount:300,balance:3499}
 
-]},
+];
 
-{name:"Andriu Narvaez",type:"8 cuotas semanales + 1 reprogramada",initial:2520,balance:945,paid:1575,note:"315 dólares los martes. La cuota del 23/06/2026 fue pospuesta y se agregó una cuota 9 al final.",schedule:[
+const defaultData={active:"Juan Rodriguez",people:[
+
+{name:"Juan Rodriguez",type:"Formato Juan Rodriguez",initial:6299,balance:3499,paid:2800,note:"Prestamo de viaje y carro por $6899 con un interes mensual del 7% con opcion amortizar al capital.",schedule:[],history:juanRows.slice().reverse().map(r=>({date:r.date,day:"",time:"",type:r.kind==="prestamo"?"Nuevo prestamo":"Pago recibido",amount:r.amount,reference:"Formato Juan",balance:r.balance})),juanRows:juanRows},
+
+{name:"Andriu Narvaez",type:"8 cuotas semanales + cuota reprogramada",initial:2520,balance:945,paid:1575,note:"315 dólares todos los martes. La cuota del 23/06/2026 fue pospuesta y se agregó una cuota 9 al final para mantener 8 pagos efectivos.",schedule:[
 
 {week:"1",date:"2026-06-02",amount:315,paid:true,paidDate:"2026-06-02",paidTime:"",reference:"Pago recibido",note:"Pago recibido"},
 
@@ -196,11 +198,11 @@ const defaultData={active:"Juan Rodriguez",people:[
 
 {week:"3",date:"2026-06-16",amount:315,paid:true,paidDate:"2026-06-16",paidTime:"",reference:"Pago recibido",note:"Pago recibido"},
 
-{week:"4",date:"2026-06-23",amount:315,paid:false,paidDate:"",paidTime:"",reference:"Cuota pospuesta",note:"La cuota del 23/06/2026 fue reprogramada para el final del plan."},
+{week:"4",date:"2026-06-23",amount:315,paid:false,paidDate:"",paidTime:"",reference:"Cuota pospuesta",note:"Esta cuota fue reprogramada para el final del plan. No cuenta como pagada."},
 
-{week:"5",date:"2026-06-30",amount:315,paid:true,paidDate:"2026-07-01",paidTime:"",reference:"Pago realizado hoy",note:"Pago realizado hoy correspondiente a la cuota del 30/06/2026."},
+{week:"5",date:"2026-06-30",amount:315,paid:true,paidDate:"2026-06-30",paidTime:"",reference:"Pago recibido",note:"Pago recibido"},
 
-{week:"6",date:"2026-07-07",amount:315,paid:false,paidDate:"",paidTime:"",reference:"",note:""},
+{week:"6",date:"2026-07-07",amount:315,paid:true,paidDate:new Date().toISOString().slice(0,10),paidTime:"",reference:"Pago realizado hoy",note:"Pago realizado hoy correspondiente a la cuota del 07/07/2026."},
 
 {week:"7",date:"2026-07-14",amount:315,paid:false,paidDate:"",paidTime:"",reference:"",note:""},
 
@@ -210,7 +212,7 @@ const defaultData={active:"Juan Rodriguez",people:[
 
 ],history:[
 
-{date:"2026-07-01",day:"miércoles",time:"",type:"Pago realizado hoy",amount:315,reference:"Pago correspondiente a la cuota del 30/06/2026",balance:945}
+{date:new Date().toISOString().slice(0,10),day:"",time:"",type:"Pago realizado hoy",amount:315,reference:"Pago correspondiente a la cuota del 07/07/2026",balance:945}
 
 ]},
 
@@ -260,11 +262,47 @@ const defaultData={active:"Juan Rodriguez",people:[
 
 ]};
 
-let data=JSON.parse(localStorage.getItem(KEY)||JSON.stringify(defaultData));
+let data;
+
+try{data=JSON.parse(localStorage.getItem(KEY)||JSON.stringify(defaultData))}
+
+catch(e){data=clone(defaultData)}
 
 function save(){localStorage.setItem(KEY,JSON.stringify(data))}
 
-function active(){return data.people.find(p=>p.name===data.active)}
+function active(){return data.people.find(p=>p.name===data.active)||data.people[0]}
+
+function migrate(){
+
+ if(!data.people)data=clone(defaultData);
+
+ if(!data.people.find(p=>p.name==="Samsung Galaxy S26 Ultra")){
+
+   let old=data.people.find(p=>p.name==="Telefono S26");
+
+   if(old){old.name="Samsung Galaxy S26 Ultra"}else{data.people.push(clone(defaultData.people.find(p=>p.name==="Samsung Galaxy S26 Ultra")))}
+
+ }
+
+ let juan=data.people.find(p=>p.name==="Juan Rodriguez");
+
+ if(juan&&!juan.juanRows) Object.assign(juan,clone(defaultData.people.find(p=>p.name==="Juan Rodriguez")));
+
+ let andriu=data.people.find(p=>p.name==="Andriu Narvaez");
+
+ if(andriu){
+
+   let base=clone(defaultData.people.find(p=>p.name==="Andriu Narvaez"));
+
+   andriu.type=base.type;andriu.initial=base.initial;andriu.balance=base.balance;andriu.paid=base.paid;andriu.note=base.note;andriu.schedule=base.schedule;andriu.history=base.history;
+
+ }
+
+ save();
+
+}
+
+migrate();
 
 function render(){renderSummary();renderTabs();renderPanel();checkAlerts(false)}
 
@@ -388,7 +426,7 @@ let nuevaFecha=prompt("Nueva fecha programada YYYY-MM-DD:",cuota.date||"");if(!n
 
 let nuevoMonto=prompt("Nuevo monto:",cuota.amount||0);if(nuevoMonto===null||nuevoMonto==="")return;
 
-let estado=prompt("Estado: pagado o pendiente",cuota.paid?"pagado":"pendiente");if(!estado)return;
+let estado=prompt("Estado: pagado, pendiente o pospuesta",cuota.paid?"pagado":"pendiente");if(!estado)return;
 
 let fechaReal=prompt("Fecha real de pago YYYY-MM-DD:",cuota.paidDate||new Date().toISOString().slice(0,10));if(!fechaReal)fechaReal=new Date().toISOString().slice(0,10);
 
@@ -411,6 +449,8 @@ if(!persona.history)persona.history=[];persona.history.unshift({date:fechaReal,d
 if(cuota.paid===true){persona.paid=Math.max(0,Number(persona.paid||0)-Number(cuota.amount||0));persona.balance=Number(persona.balance||0)+Number(cuota.amount||0)}
 
 cuota.paid=false;cuota.paidDate="";cuota.paidTime="";
+
+if(estado.toLowerCase().trim()==="pospuesta"){cuota.reference="Cuota pospuesta";if(!cuota.note)cuota.note="Cuota pospuesta / reprogramada."}
 
 }
 
@@ -550,8 +590,8 @@ document.addEventListener("DOMContentLoaded",render);
 
 </html>'''
 
-out = Path("/mnt/data/INDEX_COMPLETO_ESTABLE_EDIXON_LOBO.html")
+out = Path("/mnt/data/INDEX_COMPLETO_CON_EDICION_CUOTAS.html")
 
 out.write_text(html, encoding="utf-8")
 
-print(str(out))
+print(out)
